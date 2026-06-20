@@ -5,19 +5,18 @@ import asyncio
 import threading
 from telegram.ext import Application, CommandHandler, ContextTypes
 import pandas as pd
-from ta.momentum import RSIIndicator
-from ta.trend import EMAIndicator, MACD
 from pybit.unified_trading import HTTP
 
 app = Flask(__name__)
 
+# ================== НАСТРОЙКИ ==================
 TOKEN = "8918083070:AAE_fWUOO_5X_lly7K3pFIaLaxiVHtlyh1M"
 CHAT_ID = "318740554"
 
 bot = telegram.Bot(token=TOKEN)
 bybit = HTTP(testnet=False, timeout=30)
 
-# Webhook для TradingView
+# ================== WEBHOOK ДЛЯ TRADINGVIEW ==================
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
@@ -30,37 +29,54 @@ def webhook():
         print("Webhook Error:", str(e))
     return "ERROR", 500
 
-# Команды Telegram
-async def start(update, context):
-    await update.message.reply_text("🚀 Jin Trading Bot онлайн!\n\nИспользуй /analyze BTC")
+# ================== КОМАНДЫ ==================
+async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🚀 **Jin Trading Bot** онлайн!\n\nИспользуй /analyze BTC")
 
-async def analyze(update, context):
+async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        symbol = (context.args[0].upper() if context.args else "BTC") + "USDT"
+        symbol_input = context.args[0].upper() if context.args else "BTC"
+        symbol = symbol_input + "USDT"
+        
         data = bybit.get_kline(category="linear", symbol=symbol, interval="60", limit=200)
         df = pd.DataFrame(data["result"]["list"])
         df = df.iloc[::-1]
         df["close"] = df[4].astype(float)
 
         price = df["close"].iloc[-1]
-        rsi = RSIIndicator(df["close"]).rsi().iloc[-1]
+        # Простой RSI
+        delta = df["close"].diff()
+        gain = delta.where(delta > 0, 0).rolling(window=14).mean()
+        loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs)).iloc[-1]
 
-        text = f"🔍 **{symbol}**\nЦена: **{price:.4f}**\nRSI: **{rsi:.2f}**"
+        text = f"""
+🔍 **Анализ {symbol}**
+
+**Цена:** `{price:.4f}`
+**RSI:** `{rsi:.2f}`
+
+**Сигнал:** {'🟢 STRONG BUY' if rsi < 35 else '🟡 WAIT' if rsi < 50 else '🔴 NO TRADE'}
+"""
         await update.message.reply_text(text)
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка: {e}")
 
-if __name__ == "__main__":
-    # Запуск Telegram
-    def run_telegram():
+# ================== ЗАПУСК ==================
+def run_telegram_bot():
+    try:
         application = Application.builder().token(TOKEN).build()
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("analyze", analyze))
-        print("🤖 Telegram Bot запущен...")
+        print("🤖 Telegram Bot успешно запущен...")
         application.run_polling()
+    except Exception as e:
+        print("❌ TELEGRAM ERROR:", str(e))
 
-    threading.Thread(target=run_telegram, daemon=True).start()
-
-    # Flask будет запущен через gunicorn
+if __name__ == "__main__":
+    threading.Thread(target=run_telegram_bot, daemon=True).start()
+    
     port = int(os.environ.get("PORT", 5000))
-    print(f"🌐 Flask started on port {port}")
+    print(f"🌐 Flask Webhook запущен на порту {port}")
+    app.run(host="0.0.0.0", port=port)
