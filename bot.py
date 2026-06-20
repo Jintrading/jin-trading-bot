@@ -4,7 +4,6 @@ import os
 import asyncio
 import threading
 from telegram.ext import Application, CommandHandler, ContextTypes
-import pandas as pd
 from pybit.unified_trading import HTTP
 
 app = Flask(__name__)
@@ -39,26 +38,11 @@ async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
         symbol = symbol_input + "USDT"
         
         data = bybit.get_kline(category="linear", symbol=symbol, interval="60", limit=200)
-        df = pd.DataFrame(data["result"]["list"])
-        df = df.iloc[::-1]
-        df["close"] = df[4].astype(float)
+        rows = data["result"]["list"]
+        closes = [float(row[4]) for row in rows[::-1]]
+        price = closes[0]
 
-        price = df["close"].iloc[-1]
-        # Простой RSI
-        delta = df["close"].diff()
-        gain = delta.where(delta > 0, 0).rolling(window=14).mean()
-        loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
-        rs = gain / loss
-        rsi = 100 - (100 / (1 + rs)).iloc[-1]
-
-        text = f"""
-🔍 **Анализ {symbol}**
-
-**Цена:** `{price:.4f}`
-**RSI:** `{rsi:.2f}`
-
-**Сигнал:** {'🟢 STRONG BUY' if rsi < 35 else '🟡 WAIT' if rsi < 50 else '🔴 NO TRADE'}
-"""
+        text = f"🔍 **Анализ {symbol}**\n**Цена:** `{price:.4f}`"
         await update.message.reply_text(text)
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка: {e}")
