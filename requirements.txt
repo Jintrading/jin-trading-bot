@@ -1,5 +1,0 @@
-flask
-python-telegram-bot==20.0
-pandas
-ta
-pybit
