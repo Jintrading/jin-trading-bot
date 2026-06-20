@@ -1,8 +1,7 @@
-flask
-gunicorn
+Flask==3.0.3
+gunicorn==22.0.0
 python-telegram-bot==20.7
-pandas
+pandas==2.2.2
 ta==0.11.0
-pybit
-numpy
-requests
+pybit==5.8.0
+numpy==1.26.4
