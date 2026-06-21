@@ -25,8 +25,8 @@ CONFIG
 
 =====================================
 
-TOKEN = os.getenv(“8918083070:AAE_fWUOO_5X_lly7K3pFIaLaxiVHtlyh1M”)
-CHAT_ID = os.getenv(“318740554”)
+TOKEN = "8918083070:AAE_fWUOO_5X_lly7K3pFIaLaxiVHtlyh1M"
+CHAT_ID = "318740554"
 
 if not TOKEN:
 raise ValueError(“BOT_TOKEN not found”)
