@@ -31,13 +31,13 @@ def webhook():
         print("Webhook Error:", str(e))
     return "ERROR", 500
 
-# ================== КОМАНДЫ ==================
+# ================== ТВОИ ОРИГИНАЛЬНЫЕ КОМАНДЫ ==================
 async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚀 Trading bot online\n\n/analyze BTC")
 
 async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        symbol = context.args[0].upper() + "USDT" if context.args else "BTCUSDT"
+        symbol = context.args[0].upper() + "USDT"
 
         data = bybit.get_kline(
             category="linear",
@@ -78,10 +78,11 @@ async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
         high = df["close"].max()
         low = df["close"].min()
 
-        fib_0786 = high - ((high - low) * 0.786)
-        fib_1618 = high - ((high - low) * 1.618)
+        fib_0786 = high - ((high-low)*0.786)
+        fib_1618 = high - ((high-low)*1.618)
 
         score = 0
+
         if rsi < 30:
             score += 1
         if abs(price - fib_0786) / price < 0.02:
@@ -108,36 +109,62 @@ async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
         text = f"""
 {symbol}
 
-Цена: {price:.4f}
+Цена:
+{price:.4f}
 
-RSI: {rsi:.2f}
+RSI:
+{rsi:.2f}
 
-EMA20: {ema20:.4f}
+EMA20:
+{ema20:.4f}
 
-EMA50: {ema50:.4f}
+EMA50:
+{ema50:.4f}
 
-MACD: {macd_value:.4f}
+MACD:
+{macd_value:.4f}
 
-MACD Signal: {macd_signal:.4f}
+MACD Signal:
+{macd_signal:.4f}
 
-Buy Force: 🟢 {buy_force:.2f}%
-Sell Force: 🔴 {sell_force:.2f}%
+Buy Force:
+🟢 {buy_force:.2f}%
 
-VWAP: {vwap:.4f}
+Sell Force:
+🔴 {sell_force:.2f}%
+
+VWAP:
+{vwap:.4f}
 
 Fibonacci:
-0.786: {fib_0786:.4f}
-1.618: {fib_1618:.4f}
 
-BUY SCORE: {score}/5
+0.786:
+{fib_0786:.4f}
 
-Сигнал: {signal}
+1.618:
+{fib_1618:.4f}
 
-TP1: {tp1:.4f}
-TP2: {tp2:.4f}
-TP3: {tp3:.4f}
-STOP LOSS: {stop:.4f}
+BUY SCORE:
+
+{score}/5
+
+Сигнал:
+
+{signal}
+
+TP1:
+{tp1:.4f}
+
+TP2:
+{tp2:.4f}
+
+TP3:
+{tp3:.4f}
+
+STOP LOSS:
+{stop:.4f}
 """
+
         await update.message.reply_text(text)
 
     except Exception as e:
