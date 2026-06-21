@@ -30,7 +30,7 @@ def webhook():
         print("Webhook Error:", str(e))
     return "ERROR", 500
 
-# ================== БРАУЗЕРНЫЕ ТЕСТЫ ==================
+# ================== БРАУЗЕР ==================
 @app.route('/start', methods=['GET'])
 def start_route():
     asyncio.run(bot.send_message(chat_id=CHAT_ID, text="🚀 Jin Trading Bot работает!"))
@@ -38,21 +38,31 @@ def start_route():
 
 # ================== TELEGRAM КОМАНДЫ ==================
 async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🚀 Jin Trading Bot онлайн!\n\nИспользуй /analyze BTC")
+    await update.message.reply_text("🚀 Jin Trading Bot онлайн!\n\n/analyze BTC")
 
 async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         symbol_input = context.args[0].upper() if context.args else "BTC"
-        symbol = symbol_input + "USDT"
+        symbol = symbol_input if symbol_input.endswith("USDT") else symbol_input + "USDT"
 
         await update.message.reply_text(f"🔍 Получаю данные для {symbol}...")
 
-        data = bybit.get_kline(category="linear", symbol=symbol, interval="60", limit=200)
+        data = bybit.get_kline(
+            category="linear",
+            symbol=symbol,
+            interval="60",
+            limit=200
+        )
+
         rows = data["result"]["list"]
-        df = pd.DataFrame(rows)
-        df = df.iloc[::-1]
-        df["close"] = df[4].astype(float)
-        df["volume"] = df[5].astype(float)
+        df = pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume", "turnover"])
+        
+        df = df.iloc[::-1].reset_index(drop=True)
+        df["open"] = pd.to_numeric(df["open"], errors='coerce')
+        df["high"] = pd.to_numeric(df["high"], errors='coerce')
+        df["low"] = pd.to_numeric(df["low"], errors='coerce')
+        df["close"] = pd.to_numeric(df["close"], errors='coerce')
+        df["volume"] = pd.to_numeric(df["volume"], errors='coerce')
 
         price = df["close"].iloc[-1]
         rsi = RSIIndicator(df["close"]).rsi().iloc[-1]
@@ -66,7 +76,7 @@ async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
         buy_volume = 0
         sell_volume = 0
         for i in range(len(df)):
-            if df.iloc[i]["close"] >= float(df.iloc[i][1]):
+            if df.iloc[i]["close"] >= df.iloc[i]["open"]:
                 buy_volume += df.iloc[i]["volume"]
             else:
                 sell_volume += df.iloc[i]["volume"]
@@ -113,7 +123,7 @@ async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
 **RSI:** {rsi:.2f}
 **EMA20:** {ema20:.4f}
 **EMA50:** {ema50:.4f}
-**MACD:** {macd_value:.4f} | Signal: {macd_signal:.4f}
+**MACD:** {macd_value:.4f} | Sig: {macd_signal:.4f}
 
 **Buy Force:** 🟢 {buy_force:.1f}%
 **Sell Force:** 🔴 {sell_force:.1f}%
@@ -132,7 +142,7 @@ async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text)
 
     except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка: {str(e)[:300]}")
+        await update.message.reply_text(f"❌ Ошибка: {str(e)[:250]}")
 
 # ================== ЗАПУСК ==================
 def run_telegram_bot():
