@@ -30,7 +30,7 @@ def webhook():
         print("Webhook Error:", str(e))
     return "ERROR", 500
 
-# ================== ТЕСТОВЫЕ РОУТЫ ДЛЯ БРАУЗЕРА ==================
+# ================== БРАУЗЕРНЫЕ ТЕСТЫ ==================
 @app.route('/start', methods=['GET'])
 def start_route():
     asyncio.run(bot.send_message(chat_id=CHAT_ID, text="🚀 Jin Trading Bot работает!"))
@@ -39,33 +39,40 @@ def start_route():
 @app.route('/analyze', methods=['GET'])
 def analyze_route():
     symbol = request.args.get('symbol', 'BTC')
-    asyncio.run(bot.send_message(chat_id=CHAT_ID, text=f"Анализ запущен для {symbol}USDT (через браузер)"))
+    asyncio.run(bot.send_message(chat_id=CHAT_ID, text=f"🔍 Запускаю анализ {symbol}USDT..."))
     return "OK"
 
-# ================== КОМАНДЫ TELEGRAM ==================
+# ================== TELEGRAM КОМАНДЫ ==================
 async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚀 Jin Trading Bot онлайн!\n\nИспользуй /analyze BTC")
 
 async def analyze(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE):
-    # ... (твой полный анализ, как раньше — я оставил его)
     try:
-        symbol = context.args[0].upper() + "USDT" if context.args else "BTCUSDT"
-        # весь твой код анализа здесь (я его не убирал)
+        symbol_input = context.args[0].upper() if context.args else "BTC"
+        symbol = symbol_input + "USDT"
+
+        await update.message.reply_text(f"🔍 Получаю данные для {symbol}...")
+
         data = bybit.get_kline(category="linear", symbol=symbol, interval="60", limit=200)
         rows = data["result"]["list"]
         df = pd.DataFrame(rows)
         df = df.iloc[::-1]
         df["close"] = df[4].astype(float)
-        df["volume"] = df[5].astype(float)
 
         price = df["close"].iloc[-1]
         rsi = RSIIndicator(df["close"]).rsi().iloc[-1]
-        # ... (остальной твой код)
 
-        text = f"🔍 Анализ {symbol}\nЦена: {price:.4f}\nRSI: {rsi:.2f}\n... (полный текст)"
+        text = f"""
+🔍 **Анализ {symbol}**
+
+Цена: **{price:.4f}**
+RSI: **{rsi:.2f}**
+
+Сигнал: {'🟢 STRONG BUY' if rsi < 35 else '🟡 WAIT' if rsi < 50 else '🔴 NO TRADE'}
+"""
         await update.message.reply_text(text)
     except Exception as e:
-        await update.message.reply_text(f"Ошибка: {e}")
+        await update.message.reply_text(f"❌ Ошибка: {str(e)}")
 
 # ================== ЗАПУСК ==================
 def run_telegram_bot():
@@ -73,8 +80,8 @@ def run_telegram_bot():
         application = Application.builder().token(TOKEN).build()
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("analyze", analyze))
-        print("🤖 Telegram Bot запущен...")
-        application.run_polling()
+        print("🤖 Telegram Bot запущен успешно...")
+        application.run_polling(drop_pending_updates=True)
     except Exception as e:
         print("❌ TELEGRAM ERROR:", str(e))
 
