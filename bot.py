@@ -19,25 +19,24 @@ from pybit.unified_trading import HTTP
 from ta.momentum import RSIIndicator
 from ta.trend import EMAIndicator, MACD
 
-=====================================
-
-CONFIG
-
-=====================================
+app = Flask(__name__)
 
 TOKEN = "8918083070:AAE_fWUOO_5X_lly7K3pFIaLaxiVHtlyh1M"
 CHAT_ID = "318740554"
 
-if not TOKEN:
-raise ValueError(“BOT_TOKEN not found”)
-
 bot = telegram.Bot(token=TOKEN)
 
-bybit = HTTP(
-testnet=False,
-timeout=30
-)
-
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    try:
+        data = request.get_json()
+        if data and 'message' in data:
+            message = data['message']
+            asyncio.run(bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='Markdown'))
+            return "OK", 200
+    except Exception as e:
+        print("Webhook Error:", str(e))
+    return "ERROR", 500
 app = Flask(name)
 
 =====================================
