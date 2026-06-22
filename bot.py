@@ -7,9 +7,8 @@ from pybit.unified_trading import HTTP
 from telegram import Update, Bot
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = int(os.getenv("CHAT_ID"))
-
+TOKEN = "8918083070:AAE_fWUOO_5X_lly7K3pFIaLaxiVHtlyh1M"
+CHAT_ID = 318740554
 bybit = HTTP(testnet=False, timeout=30)
 
 # ======================
