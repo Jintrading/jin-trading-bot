@@ -7,8 +7,9 @@ from ta.momentum import RSIIndicator
 from ta.trend import EMAIndicator, MACD
 from pybit.unified_trading import HTTP
 
-TOKEN = os.getenv("8918083070:AAE_fWUOO_5X_lly7K3pFIaLaxiVHtlyh1M")
+TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = int(os.getenv("CHAT_ID"))
+
 bybit = HTTP(testnet=False, timeout=30)
 
 # ======================
