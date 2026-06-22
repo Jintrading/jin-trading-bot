@@ -2,8 +2,8 @@ from flask import Flask, request
 import os
 from telegram import Bot
 
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = int(os.getenv("CHAT_ID"))
+TOKEN = "8918083070:AAE_fWUOO_5X_lly7K3pFIaLaxiVHtlyh1M"
+CHAT_ID = 318740554
 
 app = Flask(__name__)
 
