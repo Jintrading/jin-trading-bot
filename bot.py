@@ -8,7 +8,7 @@ from ta.trend import EMAIndicator, MACD
 from pybit.unified_trading import HTTP
 
 TOKEN = os.getenv("8918083070:AAE_fWUOO_5X_lly7K3pFIaLaxiVHtlyh1M")
-CHAT_ID = int(os.getenv("318740554"))
+CHAT_ID = int(os.getenv("318740554"))   
 bybit = HTTP(testnet=False, timeout=30)
 
 # ======================
