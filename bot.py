@@ -2,7 +2,7 @@ from flask import Flask, request
 import os
 from telegram import Bot
 
-TOKEN = "8918083070:AAE_fWUOO_5X_lly7K3pFIaLaxiVHtlyh1M"
+TOKEN = "8918083070:AAEfnoa7r_EhsSyrPwyr6o-BFRxjtdWBcz8"
 CHAT_ID = 318740554
 
 app = Flask(__name__)
@@ -26,3 +26,9 @@ def webhook():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json
+    print(f"Получены данные от TV: {data}")  # ЭТО ОТОБРАЗИТСЯ В ЛОГАХ RENDER
+    # ... твоя логика отправки в Telegram ...
+    return 'success', 200
