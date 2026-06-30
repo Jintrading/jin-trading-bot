@@ -1,34 +1,48 @@
-from flask import Flask, request
 import os
-from telegram import Bot
-
-TOKEN = "8918083070:AAEfnoa7r_EhsSyrPwyr6o-BFRxjtdWBcz8"
-CHAT_ID = 318740554
+import requests
+from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
+# Получаем переменные окружения (настрой их в Render в разделе Environment)
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+
+def send_telegram_message(text):
+    """Функция для отправки сообщения в Telegram"""
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": text,
+        "parse_mode": "HTML"
+    }
     try:
-        data = request.get_json()
-        symbol = data.get('symbol', 'UNKNOWN')
-        signal = data.get('signal', 'UNKNOWN')
-        price = data.get('price', 0)
-        power = data.get('power', 0)
-
-        message = f"🚨 {symbol} — {signal}\nЦена: {price}\nСила: {power}%"
-        Bot(TOKEN).send_message(chat_id=CHAT_ID, text=message)
-        return "OK", 200
+        requests.post(url, json=payload)
     except Exception as e:
-        print("Error:", e)
-        return "Error", 500
+        print(f"Ошибка при отправке в Telegram: {e}")
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
 @app.route('/webhook', methods=['POST'])
-def webhook():
-    data = request.json
-    print(f"Получены данные от TV: {data}")  # ЭТО ОТОБРАЗИТСЯ В ЛОГАХ RENDER
-    # ... твоя логика отправки в Telegram ...
-    return 'success', 200
+def handle_tradingview_webhook():
+    """Единственная функция для обработки всех алертов"""
+    try:
+        data = request.json
+        # TradingView может присылать JSON, например: {"message": "BUY LONG"}
+        message = data.get('message', 'Получен сигнал без описания')
+        
+        print(f"Пришел сигнал: {message}")
+        
+        # Отправляем в Telegram
+        send_telegram_message(f"🔔 <b>Сигнал TradingView:</b>\n\n{message}")
+        
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        print(f"Ошибка обработки webhook: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Этот путь нужен для UptimeRobot, чтобы сервер не засыпал"""
+    return "OK", 200
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
