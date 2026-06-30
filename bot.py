@@ -2,56 +2,75 @@ import os
 import ccxt
 import pandas as pd
 import ta
+import threading
 import requests
 from flask import Flask, request, jsonify
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 app = Flask(__name__)
 
+# Получение переменных из Render
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
-# URL твоего сервиса (вставь свой сюда!)
-WEBHOOK_URL = "https://jin-trading-bot.onrender.com" 
 exchange = ccxt.bybit()
 
-# --- Логика анализа ---
+# Функция анализа данных
 def get_market_data(symbol_base):
     try:
         symbol = f"{symbol_base.upper()}/USDT"
-        bars = exchange.fetch_ohlcv(symbol, timeframe='4h', limit=50)
-        df = pd.DataFrame(bars, columns=['t', 'o', 'h', 'l', 'close', 'v'])
-        df['rsi'] = ta.momentum.rsi(df['close'], window=14)
-        last = df.iloc[-1]
-        return f"📊 {symbol}\nЦена: {last['close']:.2f}\nRSI: {last['rsi']:.2f}"
-    except Exception as e:
-        return f"Ошибка: {str(e)}"
-
-# --- Webhook для обработки сообщений Telegram ---
-@app.route('/telegram-hook', methods=['POST'])
-def telegram_hook():
-    update = request.json
-    if 'message' in update:
-        chat_id = update['message']['chat']['id']
-        text = update['message'].get('text', '')
+        bars = exchange.fetch_ohlcv(symbol, timeframe='4h', limit=100)
+        df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         
-        if text.startswith('/analyze'):
-            parts = text.split()
-            symbol = parts[1] if len(parts) > 1 else "BTC"
-            result = get_market_data(symbol)
-            requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                          json={"chat_id": chat_id, "text": result, "parse_mode": "HTML"})
-    return "OK", 200
+        df['rsi'] = ta.momentum.rsi(df['close'], window=14)
+        df['ema20'] = ta.trend.ema_indicator(df['close'], window=20)
+        df['ema50'] = ta.trend.ema_indicator(df['close'], window=50)
+        macd = ta.trend.MACD(df['close'])
+        df['macd'] = macd.macd()
+        last = df.iloc[-1]
+        
+        return (f"📊 <b>Анализ {symbol}</b>\n\n"
+                f"Цена: {last['close']:.4f}\n"
+                f"RSI: {last['rsi']:.2f}\n"
+                f"EMA20: {last['ema20']:.4f}\n"
+                f"EMA50: {last['ema50']:.4f}\n"
+                f"MACD: {last['macd']:.4f}")
+    except Exception as e:
+        return f"Ошибка получения данных: {str(e)}"
 
-# --- Webhook для TradingView ---
-@app.route('/webhook', methods=['POST'])
-def tradingview_webhook():
+# --- Telegram Bot ---
+async def analyze_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    symbol = context.args[0] if context.args else "BTC"
+    result = get_market_data(symbol)
+    await update.message.reply_text(result, parse_mode='HTML')
+
+def run_telegram_bot():
+    if TOKEN:
+        application = ApplicationBuilder().token(TOKEN).build()
+        application.add_handler(CommandHandler("analyze", analyze_command))
+        application.run_polling()
+
+# --- Webhooks (TradingView & Health) ---
+@app.route('/webhook', methods=['POST', 'GET'])
+def webhook():
+    if request.method == 'GET':
+        return "Webhook активен и ждет данные от TradingView", 200
+    
     data = request.json
     msg = data.get('message', 'Сигнал получен')
-    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                  json={"chat_id": CHAT_ID, "text": f"🔔 {msg}"})
+    
+    # Отправка в Telegram
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    requests.post(url, json={"chat_id": CHAT_ID, "text": f"🔔 {msg}", "parse_mode": "HTML"})
+    return jsonify({"status": "success"}), 200
+
+@app.route('/health', methods=['GET'])
+def health():
     return "OK", 200
 
 if __name__ == '__main__':
-    # Привязываем Telegram Webhook к нашему серверу
-    set_webhook_url = f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}/telegram-hook"
-    requests.get(set_webhook_url)
+    # Запуск бота в потоке
+    threading.Thread(target=run_telegram_bot, daemon=True).start()
+    # Запуск Flask сервера
     app.run(host='0.0.0.0', port=5000)
+
