@@ -10,12 +10,12 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 app = Flask(__name__)
 
-# Настройки
+# Получение переменных из Render
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
 CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 exchange = ccxt.bybit()
 
-# --- Функции анализа ---
+# Функция анализа данных
 def get_market_data(symbol_base):
     try:
         symbol = f"{symbol_base.upper()}/USDT"
@@ -36,9 +36,9 @@ def get_market_data(symbol_base):
                 f"EMA50: {last['ema50']:.4f}\n"
                 f"MACD: {last['macd']:.4f}")
     except Exception as e:
-        return f"Ошибка данных: {str(e)}"
+        return f"Ошибка получения данных: {str(e)}"
 
-# --- Telegram Бот (Polling) ---
+# --- Telegram Bot ---
 async def analyze_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     symbol = context.args[0] if context.args else "BTC"
     result = get_market_data(symbol)
@@ -50,12 +50,16 @@ def run_telegram_bot():
         application.add_handler(CommandHandler("analyze", analyze_command))
         application.run_polling()
 
-# --- Веб-сервер ---
-@app.route('/webhook', methods=['POST'])
+# --- Webhooks (TradingView & Health) ---
+@app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
+    if request.method == 'GET':
+        return "Webhook активен и ждет данные от TradingView", 200
+    
     data = request.json
     msg = data.get('message', 'Сигнал получен')
-    # Отправка алертов из TradingView в Telegram
+    
+    # Отправка в Telegram
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": CHAT_ID, "text": f"🔔 {msg}", "parse_mode": "HTML"})
     return jsonify({"status": "success"}), 200
@@ -65,7 +69,7 @@ def health():
     return "OK", 200
 
 if __name__ == '__main__':
-    # Запускаем бота в фоне
+    # Запуск бота в потоке
     threading.Thread(target=run_telegram_bot, daemon=True).start()
-    # Запускаем сервер
+    # Запуск Flask сервера
     app.run(host='0.0.0.0', port=5000)
