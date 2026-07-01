@@ -1,7 +1,6 @@
 Flask
 requests
-gunicorn
-python-telegram-bot
 ccxt
 pandas
 ta
+gunicorn
