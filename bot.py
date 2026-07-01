@@ -9,61 +9,62 @@ app = Flask(__name__)
 
 # Получение переменных из Render
 TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
-CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
+CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID') # Твой ID, куда пересылать сигналы
 WEBHOOK_URL = "https://jin-trading-bot.onrender.com"
 exchange = ccxt.bybit()
 
-# Функция анализа данных
+# Имя бота, сообщения которого мы хотим "слушать"
+SOURCE_BOT_USERNAME = "gurutrading1bot" 
+
+# --- Функция анализа ---
 def get_market_data(symbol_base):
     try:
         symbol = f"{symbol_base.upper()}/USDT"
         bars = exchange.fetch_ohlcv(symbol, timeframe='4h', limit=100)
-        df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df = pd.DataFrame(bars, columns=['t', 'o', 'h', 'l', 'close', 'v'])
         
         df['rsi'] = ta.momentum.rsi(df['close'], window=14)
-        df['ema20'] = ta.trend.ema_indicator(df['close'], window=20)
-        df['ema50'] = ta.trend.ema_indicator(df['close'], window=50)
-        macd = ta.trend.MACD(df['close'])
-        df['macd'] = macd.macd()
         last = df.iloc[-1]
         
-        return (f"📊 <b>Анализ {symbol}</b>\n\n"
-                f"Цена: {last['close']:.4f}\n"
-                f"RSI: {last['rsi']:.2f}\n"
-                f"EMA20: {last['ema20']:.4f}\n"
-                f"EMA50: {last['ema50']:.4f}\n"
-                f"MACD: {last['macd']:.4f}")
+        return f"📊 <b>{symbol}</b>\nЦена: {last['close']:.4f}\nRSI: {last['rsi']:.2f}"
     except Exception as e:
-        return f"Ошибка получения данных: {str(e)}"
+        return f"Ошибка: {str(e)}"
 
-# --- Webhook для Telegram (Принимает команды /analyze) ---
+# --- Webhook для Telegram (Прием всех сообщений) ---
 @app.route('/telegram-hook', methods=['POST'])
 def telegram_hook():
     update = request.json
+    
     if 'message' in update:
-        chat_id = update['message']['chat']['id']
-        text = update['message'].get('text', '')
+        msg = update['message']
+        chat_id = msg['chat']['id']
+        text = msg.get('text', '')
         
+        # 1. Если сообщение от другого бота - пересылаем его тебе
+        if 'from' in msg and msg['from'].get('username') == SOURCE_BOT_USERNAME:
+            requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                          json={"chat_id": CHAT_ID, "text": f"🔔 Сигнал от {SOURCE_BOT_USERNAME}:\n{text}"})
+
+        # 2. Если команда от тебя
         if text.startswith('/analyze'):
             parts = text.split()
             symbol = parts[1] if len(parts) > 1 else "BTC"
             result = get_market_data(symbol)
             requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
                           json={"chat_id": chat_id, "text": result, "parse_mode": "HTML"})
+            
     return "OK", 200
 
 # --- Webhook для TradingView ---
-@app.route('/webhook', methods=['POST', 'GET'])
+@app.route('/webhook', methods=['POST'])
 def tradingview_webhook():
-    if request.method == 'GET':
-        return "Webhook активен", 200
     data = request.json
     msg = data.get('message', 'Сигнал получен')
     requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                  json={"chat_id": CHAT_ID, "text": f"🔔 {msg}", "parse_mode": "HTML"})
-    return jsonify({"status": "success"}), 200
+                  json={"chat_id": CHAT_ID, "text": f"🔔 {msg}"})
+    return "OK", 200
 
 if __name__ == '__main__':
-    # Привязываем Telegram Webhook к нашему серверу один раз
+    # Привязка вебхука
     requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={WEBHOOK_URL}/telegram-hook")
     app.run(host='0.0.0.0', port=5000)
